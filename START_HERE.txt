@@ -1,0 +1,308 @@
+================================================================================
+  SPHEREX SKY EXPLORER - NASA SPACE APPS CHALLENGE 2026
+  HACKATHON STARTER KIT - START HERE
+================================================================================
+
+🚀 YOU NOW HAVE 6 PRODUCTION-READY FILES:
+
+1. spherex-parser.js (2.0 KB)
+   - Converts your HTML SPHEREx data table to JSON
+   - Creates spatial index for fast lookups
+   - Run: node spherex-parser.js
+
+2. spherex-api.js (5.2 KB)
+   - Express.js backend with all API endpoints
+   - Handles observation queries, moving object detection, image serving
+   - Copy to: server/spherex-api.js
+
+3. SkyExplorer.jsx (12 KB)
+   - Main React component with full UI
+   - Coordinates selector, image comparison, time-lapse
+   - Copy to: src/components/SkyExplorer.jsx
+
+4. CanvasSkyMap.jsx (8.5 KB)
+   - Advanced canvas visualization with starfield
+   - Shows wavelength-colored objects and motion arrows
+   - Copy to: src/components/CanvasSkyMap.jsx
+
+5. PROJECT_SETUP.md (8.4 KB)
+   - Complete technical guide with step-by-step instructions
+   - Project structure, npm packages, deployment info
+   - Read this first!
+
+6. SUBMISSION_GUIDE.md (12 KB)
+   - Winning strategy for judges
+   - Submission checklist (40+ items)
+   - Demo video script
+   - README.md template
+
+================================================================================
+QUICK START (Copy-Paste Commands)
+================================================================================
+
+STEP 1: Create project
+  mkdir spherex-hackathon && cd spherex-hackathon
+
+STEP 2: Initialize npm
+  npm init -y
+  npm install express cors axios dotenv cheerio react react-dom vite @vitejs/plugin-react tailwindcss leaflet react-leaflet
+
+STEP 3: Create folder structure
+  mkdir -p public/images src/components server data
+
+STEP 4: Add files
+  # Copy the 6 files into your project folders:
+  - spherex-parser.js → root (or server/)
+  - spherex-api.js → server/
+  - SkyExplorer.jsx → src/components/
+  - CanvasSkyMap.jsx → src/components/
+  - PROJECT_SETUP.md → read for full setup
+  - SUBMISSION_GUIDE.md → reference for winning strategy
+
+STEP 5: Parse your data
+  # Copy your SPHEREx HTML file to public/
+  cp 1790441094847_spherex-example.html public/spherex-example.html
+  
+  # Run parser
+  node spherex-parser.js
+  
+  # Should create:
+  # - spherex-catalog.json (~2MB)
+  # - spherex-spatial-index.json (~500KB)
+
+STEP 6: Create server.js
+  # In root directory, create server/server.js with this content:
+  
+  const express = require('express');
+  const cors = require('cors');
+  require('dotenv').config();
+  const spherexApi = require('./spherex-api');
+
+  const app = express();
+  const PORT = process.env.PORT || 5000;
+
+  app.use(cors());
+  app.use(express.json());
+  app.use(express.static('public'));
+  app.use('/api/spherex', spherexApi);
+
+  app.get('/health', (req, res) => {
+    res.json({ status: 'ok', message: 'SPHEREx API running' });
+  });
+
+  app.listen(PORT, () => {
+    console.log(`🌌 API running on http://localhost:${PORT}`);
+  });
+
+STEP 7: Create vite.config.js
+  import { defineConfig } from 'vite';
+  import react from '@vitejs/plugin-react';
+
+  export default defineConfig({
+    plugins: [react()],
+    server: {
+      proxy: {
+        '/api': 'http://localhost:5000'
+      }
+    }
+  });
+
+STEP 8: Create src/App.jsx
+  import React from 'react';
+  import SkyExplorer from './components/SkyExplorer';
+  import './App.css';
+
+  function App() {
+    return <SkyExplorer />;
+  }
+
+  export default App;
+
+STEP 9: Create src/main.jsx
+  import React from 'react';
+  import ReactDOM from 'react-dom/client';
+  import App from './App';
+  import './index.css';
+
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+
+STEP 10: Create public/index.html
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPHEREx Sky Explorer</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+  </html>
+
+STEP 11: Create .env
+  PORT=5000
+  VITE_API_URL=http://localhost:5000
+
+STEP 12: Update package.json scripts
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "server": "node server/server.js",
+    "preview": "vite preview"
+  }
+
+STEP 13: Run locally
+  # Terminal 1 - Backend
+  npm run server
+
+  # Terminal 2 - Frontend
+  npm run dev
+
+  # Visit http://localhost:5173
+
+================================================================================
+DEPLOYMENT (When ready to submit)
+================================================================================
+
+FRONTEND (Vercel):
+  npm run build
+  npm install -g vercel
+  vercel deploy --prod
+
+BACKEND (Railway or Heroku):
+  npm install -g railway
+  railway up
+  
+  OR create Procfile:
+  echo "web: node server/server.js" > Procfile
+  git push heroku main
+
+VERIFY BOTH WORK:
+  curl https://your-frontend.vercel.app
+  curl https://your-backend.railway.app/api/spherex/stats
+
+================================================================================
+WHAT EACH FILE DOES
+================================================================================
+
+spherex-parser.js:
+  INPUT: 1790441094847_spherex-example.html (your HTML table)
+  OUTPUT: 
+    - spherex-catalog.json (all observations as JSON array)
+    - spherex-spatial-index.json (RA/Dec grid index for fast queries)
+  
+  Run once, then never again.
+
+spherex-api.js:
+  Implements these endpoints:
+  - GET /observations?ra=X&dec=Y&radius=Z&band=BAND
+  - POST /detect-moving-objects (compare two surveys)
+  - GET /image/:obsId (fetch image from IRSA)
+  - GET /stats (catalog statistics)
+  - GET /search?q=TARGET (find by name)
+  
+  No modifications needed - copy as-is.
+
+SkyExplorer.jsx:
+  Main UI component with:
+  - Sky coordinates input
+  - Wavelength band selector
+  - Survey comparison controls
+  - Time-lapse slider
+  - Moving objects display
+  - Left/center/right panel layout
+  
+  No modifications needed - copy as-is.
+
+CanvasSkyMap.jsx:
+  Advanced visualization:
+  - Draws starfield background
+  - Shows observations as colored dots (wavelength-based)
+  - Highlights moving objects with motion arrows
+  - Interactive (zoom, pan, hover)
+  
+  Optional - use if you want advanced visuals.
+
+PROJECT_SETUP.md:
+  READ THIS FIRST - Contains:
+  - Full project structure
+  - All npm packages needed
+  - Step-by-step setup (22 sections)
+  - NASA IRSA API integration
+  - Deployment instructions
+  - Advanced features (ML, 3D, etc.)
+
+SUBMISSION_GUIDE.md:
+  Winning strategy:
+  - Challenge brief recap
+  - Judging criteria explanation
+  - 48-hour sprint timeline
+  - Demo video script
+  - README.md template
+  - Final submission checklist
+
+================================================================================
+CRITICAL ERRORS TO AVOID
+================================================================================
+
+❌ DON'T:
+  - Hardcode API keys in code (use .env)
+  - Use same port for frontend + backend
+  - Forget to copy .env to production
+  - Push node_modules to GitHub
+  - Use absolute file paths
+  - Forget to parse data before running
+
+✅ DO:
+  - Use environment variables
+  - Test both frontend (5173) and backend (5000)
+  - Deploy both frontend and backend
+  - Test live URLs before submitting
+  - Keep code clean and commented
+  - Submit 1 hour before deadline
+
+================================================================================
+TIMELINE (48 HOURS)
+================================================================================
+
+Hour 0-2:   Setup + npm install
+Hour 2-4:   Copy files + folder structure
+Hour 4-6:   Parse data (spherex-parser.js)
+Hour 6-12:  Backend setup + test API
+Hour 12-24: Frontend setup + React components
+Hour 24-32: Connect frontend to backend
+Hour 32-40: Deploy to Vercel + Railway
+Hour 40-44: Record demo video + write description
+Hour 44-48: Final testing + submit
+
+SUBMIT BY: Nov 15, 10:59 PM UTC (1 HOUR EARLY!)
+
+================================================================================
+SUPPORT
+================================================================================
+
+Read PROJECT_SETUP.md for detailed help on:
+  - Fixing npm errors
+  - Frontend/backend connection issues
+  - Deployment troubleshooting
+  - API integration with NASA IRSA
+
+Read SUBMISSION_GUIDE.md for:
+  - Winning strategies
+  - Judging criteria
+  - Video script
+  - Complete checklist
+
+================================================================================
+
+YOU'RE READY. GO WIN. 🚀
+
+Download all 6 files above. Follow the steps. Submit before deadline.
+No excuses. No mistakes. VICTORY.
+
+================================================================================
