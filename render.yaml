@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: orbital-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run server
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SPHEREX_SIA_URL
+        value: https://irsa.ipac.caltech.edu/SIA
+      - key: SPHEREX_RELEASES
+        value: spherex_qr3,spherex_qr2
+      - key: SPHEREX_UPSTREAM_TIMEOUT_MS
+        value: "60000"
+      - key: SPHEREX_QUERY_CACHE_TTL_MS
+        value: "600000"
+      - key: SPHEREX_IMAGE_CACHE_TTL_MS
+        value: "1800000"
+      - key: SPHEREX_IMAGE_CACHE_MAX_BYTES
+        value: "67108864"
+      - key: SPHEREX_PREVIEW_SIZE_DEGREES
+        value: "0.5"
+
+  - type: web
+    name: orbital
+    runtime: static
+    plan: free
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: orbital-api
+          envVarKey: RENDER_EXTERNAL_URL

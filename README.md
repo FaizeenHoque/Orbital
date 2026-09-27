@@ -18,21 +18,16 @@ Open <http://localhost:5173>. The default region is M101 (RA 210.80227°, Dec 54
 
 Copy `.env.example` to `.env` when changing server settings. In local development, Vite proxies `/api` to `http://localhost:5000`; set `VITE_API_URL` when the frontend and API are deployed separately.
 
-## Deploy to Vercel
+## Deploy to Render
 
-This repository is configured as one Vercel project:
+The repository includes `render.yaml`, which creates two Render services:
 
-- Vite builds the frontend to `dist`.
-- `api/health.js` provides `/api/health`.
-- `api/spherex/[...path].js` adapts the existing Express router to `/api/spherex/*` serverless routes.
-- Leave `VITE_API_URL` empty in Vercel so the browser uses same-origin API routes.
+- `orbital-api`: Node/Express web service running the live IRSA backend.
+- `orbital`: static site serving the Vite build.
 
-```bash
-npm install -g vercel
-vercel
-```
+Create a Render Blueprint from this repository and deploy. The static site receives the API service's public `RENDER_EXTERNAL_URL` automatically as `VITE_API_URL`. The API service uses `/health` as its health check and has all SPHEREx cache/upstream settings defined in the Blueprint.
 
-Configure these Vercel environment variables for Production (the defaults are suitable for the public IRSA service): `SPHEREX_SIA_URL`, `SPHEREX_RELEASES`, `SPHEREX_UPSTREAM_TIMEOUT_MS`, `SPHEREX_QUERY_CACHE_TTL_MS`, `SPHEREX_IMAGE_CACHE_TTL_MS`, `SPHEREX_IMAGE_CACHE_MAX_BYTES`, and `SPHEREX_PREVIEW_SIZE_DEGREES`. The image function is configured for a 60-second maximum because the first IRSA FITS cutout can require an upstream download before its PNG preview is cached. Vercel plan limits still apply.
+For a manual deployment, use `npm install && npm run build` with `dist` as the static publish directory for the frontend, and `npm install` / `npm run server` for the API web service. Set `VITE_API_URL` on the static site to the public URL of the API service.
 
 ## Architecture
 
