@@ -10,7 +10,9 @@ function initialState() {
   return { ra: Number(params.get('ra')) || 210.80227, dec: Number(params.get('dec')) || 54.34895, zoom: Number(params.get('zoom')) || 180, band: BANDS.includes(requestedBand) ? requestedBand : 'SPHEREx-D2' };
 }
 
-const hipsUrl = (band) => `${API_URL}/api/spherex/sky/hips/${band.replace('SPHEREx-', '')}/`;
+// Aladin appends the HiPS tile path itself. Keep this base URL slash-free so
+// generated requests are /D2/Norder... rather than /D2//Norder....
+const hipsUrl = (band) => `${API_URL}/api/spherex/sky/hips/${band.replace('SPHEREx-', '')}`;
 const formatRa = (ra) => `${(((Number(ra) % 360) + 360) % 360).toFixed(3)}°`;
 const formatDec = (dec) => `${dec >= 0 ? '+' : ''}${Number(dec).toFixed(3)}°`;
 
