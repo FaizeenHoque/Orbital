@@ -20,3 +20,62 @@ html,body,#root{height:100%;overflow:hidden}.instrument{height:100svh;min-height
 .instrument{padding-bottom:28px}
 @media(max-width:760px){.instrument{padding-bottom:18px}}
 .wordmark{background:transparent;padding:0;text-align:left}.team-links span{color:var(--dim);font-size:10px}
+@media(max-width:760px){
+  .instrument{padding-left:12px;padding-right:12px;padding-bottom:12px}
+  .instrument-header{min-height:64px;padding:10px 0;gap:10px}
+  .wordmark{font-size:12px}
+  .coordinate-form{gap:8px;min-width:0}
+  .coordinate-form label{font-size:8px;gap:4px}
+  .coordinate-form input{width:calc((100vw - 122px) / 2);max-width:none;min-width:0;font-size:10px}
+  .coordinate-form button{width:40px;height:40px;flex:none}
+  .sky-stage{margin-top:10px}
+  .sky-frame{width:100%;min-height:0}
+  .stage-topline{font-size:7px;overflow:hidden;white-space:nowrap}
+  .selected-date{font-size:9px}
+  .time-control{margin-top:9px}
+  .timeline-heading{font-size:8px}
+  .timeline-wrap{height:44px;margin-top:5px}
+  .timeline-track{top:21px}
+  .timeline-wrap input{height:44px}
+  .timeline-wrap input::-webkit-slider-thumb{width:17px;height:17px;margin-top:-8px}
+  .timeline-wrap input::-moz-range-thumb{width:15px;height:15px}
+  .timeline-dates{margin-top:2px;font-size:7px}
+  .control-sidebar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));width:100%;margin:9px auto 0;padding:6px;gap:5px}
+  .sidebar-label{grid-column:1/-1;text-align:left;padding:2px 4px 5px}
+  .control-sidebar .random-button{grid-column:1/-1}
+  .control-sidebar>button,.control-sidebar .tool-popover-wrap,.control-sidebar .tool-popover-wrap>button{width:100%;min-width:0;min-height:42px;flex:none}
+  .control-sidebar>button,.control-sidebar .tool-popover-wrap>button{padding:7px 3px;font-size:7px;gap:3px;white-space:nowrap}
+  .control-sidebar>button span,.control-sidebar .tool-popover-wrap>button span{font-size:14px;margin:0}
+  .control-sidebar .random-button{font-size:8px}
+  .control-sidebar .bands-popover{left:0;right:0;bottom:47px;min-width:0;width:180px}
+  .info-drawer{left:12px;right:12px;bottom:12px;max-height:calc(100svh - 110px);padding:0 12px}
+  .info-drawer .metadata-grid{gap:12px 8px}
+  .info-heading{font-size:8px}
+  .observation-line{font-size:8px}
+  .observation-id{max-width:45vw}
+  .compare-labels{font-size:6px}
+  .image-status{font-size:7px;max-width:calc(100% - 16px)}
+  .landing-page{padding:14px 14px 12px}
+  .landing-header{padding-bottom:10px}
+  .landing-tag{font-size:6px;text-align:right}
+  .landing-content{gap:16px}
+  .landing-kicker{margin-bottom:12px;font-size:7px}
+  .landing-hero h1{font-size:clamp(42px,15vw,70px);margin-bottom:13px}
+  .landing-lede{font-size:10px;line-height:1.5;margin-bottom:14px}
+  .landing-cta{min-height:42px;padding:10px 12px;font-size:9px}
+  .landing-explain{gap:9px;padding-left:10px}
+  .landing-block{grid-template-columns:18px 1fr;gap:8px}
+  .landing-block strong{font-size:9px}
+  .landing-block p{font-size:8px;line-height:1.45;margin-top:3px}
+  .landing-footer{padding-top:9px;font-size:6px}
+  .landing-footer strong{font-size:6px}
+  .landing-footer small,.team-links a,.team-links span{font-size:7px}
+}
+@media(max-width:380px){
+  .landing-tag{max-width:125px}
+  .landing-content{gap:12px}
+  .landing-explain{gap:6px}
+  .landing-block p{display:none}
+  .landing-footer{gap:10px}
+  .control-sidebar>button,.control-sidebar .tool-popover-wrap>button{font-size:6px}
+}
