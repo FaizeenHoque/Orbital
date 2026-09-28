@@ -6,34 +6,35 @@ The interface opens with a focused NSAC landing page explaining the workflow, th
 
 ## Run locally
 
-Requires Node.js 18+.
+Requires Node.js 18+ and Python 3.10+.
 
 ```bash
 npm install
+npm run backend:install
+npm run server   # Python API on :5000
 npm run dev      # Vite app on :5173
 ```
 
 Open <http://localhost:5173>. The default region is M101 (RA 210.80227°, Dec 54.34895°), the coordinate used in IRSA's official SPHEREx cutout tutorial.
 
-Development uses the local API at `http://localhost:5000`. Start it with `npm run server`, then start the frontend with `npm run dev`. For a deployed frontend, set `VITE_API_URL=https://spherex.hasnat4763.me` at build time.
+Development uses the local Python API at `http://localhost:5000`. Install its pinned dependencies with `npm run backend:install`, start it with `npm run server`, then start the frontend with `npm run dev`. For a deployed frontend, set `VITE_API_URL` to the deployed backend URL at build time.
 
 Open `/sky` for the dedicated Google-Maps-style celestial navigator. It uses Aladin Lite with the official CDS SPHEREx HiPS pyramid, local HiPS tile proxying, coordinate readouts, coverage overlays, a time scrubber, and URL-restored state such as `?ra=210.80227&dec=54.34895&zoom=2.5&band=D2`.
 
 ## Deploy to Vercel
 
-This repository is configured as one Vercel project:
+The frontend and backend are separate Vercel projects:
 
-- Vite builds the frontend to `dist`.
-- `api/health.js` provides `/api/health`.
-- `api/spherex/[...path].js` adapts the existing Express router to `/api/spherex/*` serverless routes.
-- Set `VITE_API_URL=https://spherex.hasnat4763.me` in Vercel so the browser uses the deployed SPHEREx API.
+- `orbital` builds the Vite frontend from the repository root.
+- `orbital-api` uses `backend/` as its root directory and runs the Flask WSGI app from `backend/api/index.py`.
+- Set `VITE_API_URL` on the frontend project to the public backend project URL.
 
 ```bash
 npm install -g vercel
 vercel
 ```
 
-The backend is deployed separately at `https://spherex.hasnat4763.me`; configure its upstream/cache variables on that backend deployment. The frontend deployment only needs `VITE_API_URL`.
+Configure the backend project's environment variables for `SPHEREX_SIA_URL`, `SPHEREX_RELEASES`, `SPHEREX_UPSTREAM_TIMEOUT_MS`, `SPHEREX_QUERY_CACHE_TTL_MS`, `SPHEREX_IMAGE_CACHE_TTL_MS`, `SPHEREX_IMAGE_CACHE_MAX_BYTES`, and `SPHEREX_PREVIEW_SIZE_DEGREES`. The Python dependencies are pinned in `backend/requirements.txt`.
 
 ## Architecture
 
@@ -41,7 +42,7 @@ The backend is deployed separately at `https://spherex.hasnat4763.me`; configure
 ORBITAL React UI
       │ http://localhost:5000/api/spherex
       ▼
-Deployed Express data layer
+Python/Flask data layer
       │ on-demand SIA2 metadata / cutout requests
       ▼
 NASA/IPAC IRSA SPHEREx QR3 + QR2
