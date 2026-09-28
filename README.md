@@ -10,13 +10,12 @@ Requires Node.js 18+.
 
 ```bash
 npm install
-npm run server   # Express API on :5000
 npm run dev      # Vite app on :5173
 ```
 
 Open <http://localhost:5173>. The default region is M101 (RA 210.80227°, Dec 54.34895°), the coordinate used in IRSA's official SPHEREx cutout tutorial.
 
-Copy `.env.example` to `.env` when changing server settings. In local development, Vite proxies `/api` to `http://localhost:5000`; set `VITE_API_URL` when the frontend and API are deployed separately.
+The frontend uses the deployed API at `https://spherex.hasnat4763.me` by default. Copy `.env.example` to `.env` only when pointing the frontend at another API deployment. The frontend no longer starts or proxies a local backend.
 
 ## Deploy to Vercel
 
@@ -25,22 +24,22 @@ This repository is configured as one Vercel project:
 - Vite builds the frontend to `dist`.
 - `api/health.js` provides `/api/health`.
 - `api/spherex/[...path].js` adapts the existing Express router to `/api/spherex/*` serverless routes.
-- Leave `VITE_API_URL` empty in Vercel so the browser uses same-origin API routes.
+- Set `VITE_API_URL=https://spherex.hasnat4763.me` in Vercel so the browser uses the deployed SPHEREx API.
 
 ```bash
 npm install -g vercel
 vercel
 ```
 
-Configure these Vercel environment variables for Production (the defaults are suitable for the public IRSA service): `SPHEREX_SIA_URL`, `SPHEREX_RELEASES`, `SPHEREX_UPSTREAM_TIMEOUT_MS`, `SPHEREX_QUERY_CACHE_TTL_MS`, `SPHEREX_IMAGE_CACHE_TTL_MS`, `SPHEREX_IMAGE_CACHE_MAX_BYTES`, and `SPHEREX_PREVIEW_SIZE_DEGREES`. The image function is configured for a 60-second maximum because the first IRSA FITS cutout can require an upstream download before its PNG preview is cached. Vercel plan limits still apply.
+The backend is deployed separately at `https://spherex.hasnat4763.me`; configure its upstream/cache variables on that backend deployment. The frontend deployment only needs `VITE_API_URL`.
 
 ## Architecture
 
 ```text
 ORBITAL React UI
-      │ /api/spherex
+      │ https://spherex.hasnat4763.me/api/spherex
       ▼
-Express data layer
+Deployed Express data layer
       │ on-demand SIA2 metadata / cutout requests
       ▼
 NASA/IPAC IRSA SPHEREx QR3 + QR2

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
-const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'https://spherex.hasnat4763.me').replace(/\/$/, '');
 const DEFAULT_REGION = { ra: '210.80227', dec: '54.34895', radius: '0.1' };
 const BANDS = ['SPHEREx-D1', 'SPHEREx-D2', 'SPHEREx-D3', 'SPHEREx-D4', 'SPHEREx-D5', 'SPHEREx-D6'];
 const MICRONS = [0.75, 1.10, 1.63, 2.42, 3.83, 4.42];
