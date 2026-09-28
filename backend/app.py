@@ -36,6 +36,8 @@ BANDS = {
 
 _query_cache = OrderedDict()
 _image_cache = OrderedDict()
+_preview_cache = OrderedDict()
+_hips_cache = OrderedDict()
 _cache_lock = threading.Lock()
 _record_by_product = {}
 _cache_bytes = 0
@@ -206,7 +208,8 @@ def fits_image(buffer):
             formats = {8: "B", 16: "h", 32: "i", -32: "f", -64: "d"}
             fmt = formats.get(bitpix)
             if not fmt: raise RuntimeError("Unsupported FITS pixel format.")
-            for index in range(pixels): values.append(struct.unpack(">" + fmt, buffer[data_start + index * bytes_per:data_start + (index + 1) * bytes_per])[0] * float(header.get("BSCALE", 1)) + float(header.get("BZERO", 0)))
+            bscale, bzero = float(header.get("BSCALE", 1)), float(header.get("BZERO", 0))
+            values = [value[0] * bscale + bzero for value in struct.iter_unpack(">" + fmt, memoryview(buffer)[data_start:data_start + data_bytes])]
             return width, height, values
         offset = data_start + math.ceil(max(data_bytes, 0) / 2880) * 2880
     raise RuntimeError("FITS image extension not found.")
@@ -219,8 +222,7 @@ def png_from_fits(buffer):
     pixels = []
     for value in values:
         normalized = max(0, min(1, math.asinh(max(0, value - low) / (scale / 3)) / stretch)); level = int(normalized * 255); pixels.append((int(level * .72), int(level * .86), level, 255))
-    output = io.BytesIO(); Image.new("RGBA", (width, height)).putdata(pixels)
-    image = Image.new("RGBA", (width, height)); image.putdata(pixels); image.save(output, "PNG", optimize=True); return output.getvalue()
+    output = io.BytesIO(); image = Image.new("RGBA", (width, height)); image.putdata(pixels); image.save(output, "PNG", optimize=True); return output.getvalue()
 
 
 def record_for(product, obs_id=None):
@@ -236,13 +238,36 @@ def tile_response(z, x, y, band):
 
 def hips_asset(band, asset):
     if not re.match(r"^D[1-6]$", band) or ".." in asset or not re.match(r"^(properties|Norder\d+/Dir\d+/Npix\d+\.(png|jpg|fits))$", asset): raise ValueError("Invalid HiPS asset.")
-    response = requests.get(f"{HIPS_BASE_URL}/{band}/{asset or 'properties'}", timeout=TIMEOUT)
-    return response.content, response.headers.get("Content-Type", "text/plain" if asset == "properties" else "image/png")
+    key = (band, asset or "properties")
+    with _cache_lock:
+        cached = _hips_cache.get(key)
+        if cached:
+            _hips_cache.move_to_end(key)
+            return cached
+    response = requests.get(f"{HIPS_BASE_URL}/{band}/{key[1]}", timeout=TIMEOUT)
+    response.raise_for_status()
+    result = (response.content, response.headers.get("Content-Type", "text/plain" if key[1] == "properties" else "image/png"))
+    with _cache_lock:
+        _hips_cache[key] = result
+        _hips_cache.move_to_end(key)
+        while len(_hips_cache) > 512:
+            _hips_cache.popitem(last=False)
+    return result
 
 
 def hips_preview(band, ra, dec, fov, width, height):
+    key = (band, round(ra, 6), round(dec, 6), round(fov, 7), width, height)
+    cached = cache_get(_preview_cache, key)
+    if cached is not None: return cached
     params = {"hips": f"CDS/P/SPHEREx/QR2/{band}", "ra": ra, "dec": dec, "fov": fov, "width": width, "height": height, "projection": "SIN", "format": "png"}
-    return requests.get("https://alasky.cds.unistra.fr/hips-image-services/hips2fits", params=params, timeout=TIMEOUT).content
+    response = requests.get(HIPS2FITS_URL, params=params, timeout=TIMEOUT)
+    response.raise_for_status()
+    body = response.content
+    with _cache_lock:
+        _preview_cache[key] = (time.time() + IMAGE_TTL, body, 0)
+        _preview_cache.move_to_end(key)
+        while len(_preview_cache) > 192: _preview_cache.popitem(last=False)
+    return body
 
 
 def dispatch(path):
@@ -254,14 +279,14 @@ def dispatch(path):
     if normalized.startswith("api/spherex/sky/tiles/"):
         parts = normalized.split("/"); return jsonify(tile_response(int(parts[4]), int(parts[5]), int(parts[6]), request.args.get("band", "SPHEREx-D2")))
     if normalized.startswith("api/spherex/sky/hips/"):
-        parts = normalized.split("/"); asset = "/".join(parts[5:]) or "properties"; body, content_type = hips_asset(parts[4].upper(), asset); return Response(body, content_type=content_type, headers={"Cache-Control": "public, max-age=86400", "Access-Control-Allow-Origin": "*"})
+        parts = normalized.split("/"); asset = "/".join(parts[5:]) or "properties"; body, content_type = hips_asset(parts[4].upper(), asset); max_age = 3600 if asset == "properties" else 2592000; return Response(body, content_type=content_type, headers={"Cache-Control": f"public, max-age={max_age}, immutable" if asset != "properties" else f"public, max-age={max_age}", "Access-Control-Allow-Origin": "*"})
     if normalized.startswith("api/spherex/sky/preview"):
         band = request.args.get("band", "D2").upper()
         body = hips_preview(
             band,
             coordinate(request.args.get("ra"), "ra", 0, 360),
             coordinate(request.args.get("dec"), "dec", -90, 90),
-            min(.5, max(.01, float(request.args.get("fov", PREVIEW_SIZE)))),
+            min(.5, max(.0001, float(request.args.get("fov", PREVIEW_SIZE)))),
             min(1024, max(128, int(request.args.get("width", 512)))),
             min(1024, max(128, int(request.args.get("height", 512)))),
         )
@@ -269,7 +294,10 @@ def dispatch(path):
     if normalized.startswith("api/spherex/image/"):
         obs_id = normalized.split("/")[3]; record = record_for(request.args.get("product"), obs_id)
         if not record: return error_response(404, "OBSERVATION_NOT_FOUND", "Query observations before requesting an image.")
-        ra = coordinate(request.args.get("ra"), "ra", 0, 360); dec = coordinate(request.args.get("dec"), "dec", -90, 90); size = min(.5, max(.01, float(request.args.get("size", PREVIEW_SIZE)))); response = requests.get(f"{record['_upstream_url']}?{urlencode({'center': f'{ra},{dec}d', 'size': size})}", timeout=TIMEOUT); return Response(png_from_fits(response.content), content_type="image/png", headers={"Cache-Control": "public, max-age=1800", "Access-Control-Allow-Origin": "*"})
+        ra = coordinate(request.args.get("ra"), "ra", 0, 360); dec = coordinate(request.args.get("dec"), "dec", -90, 90); size = min(.5, max(.0001, float(request.args.get("size", PREVIEW_SIZE)))); cache_key = (record["product_id"], round(ra, 6), round(dec, 6), round(size, 7)); cached = cache_get(_image_cache, cache_key)
+        if cached is None:
+            response = requests.get(f"{record['_upstream_url']}?{urlencode({'center': f'{ra},{dec}d', 'size': size})}", timeout=TIMEOUT); response.raise_for_status(); cached = png_from_fits(response.content); cache_set(_image_cache, cache_key, cached, IMAGE_TTL, len(cached))
+        return Response(cached, content_type="image/png", headers={"Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*"})
     return error_response(404, "NOT_FOUND", "API route not found.")
 
 

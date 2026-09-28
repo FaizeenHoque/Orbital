@@ -5,6 +5,8 @@ import './styles.css';
 const SkyMapPage = lazy(() => import('./SkyMap.jsx'));
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const BASE_FRAME_FOV = 0.1;
+const MIN_FRAME_FOV = 0.0001;
 const DEFAULT_REGION = { ra: '210.80227', dec: '54.34895', radius: '0.1' };
 const BANDS = ['SPHEREx-D1', 'SPHEREx-D2', 'SPHEREx-D3', 'SPHEREx-D4', 'SPHEREx-D5', 'SPHEREx-D6'];
 const MICRONS = [0.75, 1.10, 1.63, 2.42, 3.83, 4.42];
@@ -27,6 +29,14 @@ async function request(path, options = {}) {
 }
 
 function absoluteUrl(path) { return path?.startsWith('http') ? path : `${API_URL}${path || ''}`; }
+function observationImageUrl(observation, fov, center) {
+  if (!observation?.image_url) return '';
+  const url = new URL(absoluteUrl(observation.image_url));
+  url.searchParams.set('ra', center.ra.toFixed(6));
+  url.searchParams.set('dec', center.dec.toFixed(6));
+  url.searchParams.set('size', fov.toFixed(7));
+  return url.toString();
+}
 
 function preload(url) {
   if (!url) return Promise.reject(new Error('No preview URL supplied.'));
@@ -80,6 +90,13 @@ function App() {
   const [showBands, setShowBands] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const [quickPreviewUrl, setQuickPreviewUrl] = useState('');
+  const [heldImageUrl, setHeldImageUrl] = useState('');
+  const [frameFov, setFrameFov] = useState(BASE_FRAME_FOV);
+  const [frameCenter, setFrameCenter] = useState({ ra: Number(DEFAULT_REGION.ra), dec: Number(DEFAULT_REGION.dec) });
+  const [frameDragging, setFrameDragging] = useState(false);
+  const frameRef = useRef(null);
+  const dragOrigin = useRef(null);
   const controller = useRef(null);
   const firstFramePreview = useRef(true);
 
@@ -91,6 +108,10 @@ function App() {
       setQueryError('Use an RA from 0–360° and a Dec from −90° to +90°.'); return;
     }
     const abortController = new AbortController(); controller.current = abortController;
+    setFrameFov(BASE_FRAME_FOV); setFrameCenter({ ra, dec }); setHeldImageUrl(''); setQuickPreviewUrl('');
+    const quickPreview = absoluteUrl(`/api/spherex/sky/preview?${new URLSearchParams({ band: requestedBand.replace('SPHEREx-', ''), ra: String(ra), dec: String(dec), fov: String(BASE_FRAME_FOV), width: '384', height: '384' })}`);
+    setQuickPreviewUrl(quickPreview);
+    preload(quickPreview).then((url) => { if (controller.current === abortController && firstFramePreview.current) { setHeldImageUrl(url); setFrameLoading(false); } }).catch(() => {});
     setRegion({ ra: ra.toFixed(5), dec: dec.toFixed(5), radius: String(radius) });
     setBand(requestedBand); setLoading(true); setFrameLoading(true); setQueryError(''); setImageError(false); setObservations([]); setCurrentIndex(0); setDisplayIndex(-1); setCompare(false); setBlink(false); firstFramePreview.current = true;
     try {
@@ -108,21 +129,22 @@ function App() {
   const current = observations[currentIndex];
   const comparison = useMemo(() => observations.length > 1 ? { earlier: observations[0], later: observations[observations.length - 1] } : null, [observations]);
   const visibleObservation = blink ? (blinkFrame ? comparison?.later : comparison?.earlier) : current;
-  const visibleSourceUrl = absoluteUrl(visibleObservation?.image_url);
+  const visibleSourceUrl = observationImageUrl(visibleObservation, frameFov, frameCenter);
   const visiblePreviewUrl = absoluteUrl(visibleObservation?.hips_preview_url);
   const displayObservation = observations[displayIndex];
-  const displaySourceUrl = absoluteUrl(displayObservation?.image_url);
+  const displaySourceUrl = observationImageUrl(displayObservation, frameFov, frameCenter);
   const displayPreviewUrl = absoluteUrl(displayObservation?.hips_preview_url);
-  const displayUrl = cachedImage(displaySourceUrl) || cachedImage(displayPreviewUrl);
+  const displayUrl = cachedImage(displaySourceUrl) || cachedImage(displayPreviewUrl) || heldImageUrl || cachedImage(quickPreviewUrl);
 
   useEffect(() => {
     if (!current || (!visibleSourceUrl && !visiblePreviewUrl)) return undefined;
     let cancelled = false;
     setImageError(false);
     setFrameLoading(true);
-    const showDetailFrame = () => { if (!cancelled) { firstFramePreview.current = false; setDisplayIndex(blink ? (blinkFrame ? observations.length - 1 : 0) : currentIndex); setFrameLoading(false); } };
-    const showFirstPreview = () => { if (!cancelled && firstFramePreview.current) { firstFramePreview.current = false; setDisplayIndex(blink ? (blinkFrame ? observations.length - 1 : 0) : currentIndex); setFrameLoading(false); } };
-    const fastRequest = visiblePreviewUrl ? preload(visiblePreviewUrl).then(showFirstPreview) : Promise.reject();
+    const shownIndex = blink ? (blinkFrame ? observations.length - 1 : 0) : currentIndex;
+    const showDetailFrame = (url) => { if (!cancelled) { setHeldImageUrl(url); firstFramePreview.current = false; setDisplayIndex(shownIndex); setFrameLoading(false); } };
+    const showFirstPreview = (url) => { if (!cancelled && firstFramePreview.current && frameFov === BASE_FRAME_FOV) { setHeldImageUrl(url); firstFramePreview.current = false; setDisplayIndex(shownIndex); setFrameLoading(false); } };
+    const fastRequest = frameFov === BASE_FRAME_FOV && visiblePreviewUrl ? preload(visiblePreviewUrl).then(showFirstPreview) : Promise.reject();
     const detailRequest = visibleSourceUrl ? preload(visibleSourceUrl).then(showDetailFrame) : Promise.reject();
     Promise.allSettled([fastRequest, detailRequest]).then((results) => { if (!cancelled && results.every((result) => result.status === 'rejected')) { setFrameLoading(false); setImageError(true); } });
     const nearby = [observations[currentIndex - 1], observations[currentIndex + 1]];
@@ -131,7 +153,7 @@ function App() {
     const keep = [visibleSourceUrl, visiblePreviewUrl, displaySourceUrl, displayPreviewUrl, ...nearby.filter(Boolean).map((observation) => absoluteUrl(observation.hips_preview_url))];
     trimImageCache(keep);
     return () => { cancelled = true; };
-  }, [current, currentIndex, visibleSourceUrl, visiblePreviewUrl, retryKey, compare, blink, blinkFrame, comparison, displaySourceUrl, displayPreviewUrl]);
+  }, [current, currentIndex, visibleSourceUrl, visiblePreviewUrl, retryKey, compare, blink, blinkFrame, comparison, displaySourceUrl, displayPreviewUrl, frameFov, frameCenter]);
 
   useEffect(() => {
     if (!blink || !comparison) return undefined;
@@ -141,6 +163,28 @@ function App() {
 
   const dateLabel = (observation) => observation?.obs_date ? new Date(observation.obs_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
   const canCompare = observations.length > 1;
+  function zoomFrame(direction) {
+    setFrameFov((fov) => Math.max(MIN_FRAME_FOV, Math.min(BASE_FRAME_FOV, fov / (direction > 0 ? 2 : 0.5))));
+  }
+  function panStart(event) {
+    if (compare || blink || event.target.closest('.frame-zoom-controls')) return;
+    dragOrigin.current = { x: event.clientX, y: event.clientY, center: frameCenter, fov: frameFov, lastAt: 0 };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setFrameDragging(true);
+  }
+  function panMove(event) {
+    const origin = dragOrigin.current;
+    if (!origin || !frameRef.current) return;
+    const now = Date.now();
+    if (now - origin.lastAt < 100) return;
+    origin.lastAt = now;
+    const rect = frameRef.current.getBoundingClientRect();
+    const dec = Math.max(-89.9, Math.min(89.9, origin.center.dec + (event.clientY - origin.y) / rect.height * origin.fov));
+    const ra = ((origin.center.ra - (event.clientX - origin.x) / rect.width * origin.fov / Math.max(0.01, Math.cos(origin.center.dec * Math.PI / 180))) % 360 + 360) % 360;
+    setFrameCenter({ ra, dec });
+  }
+  function panEnd(event) { if (event && dragOrigin.current) { dragOrigin.current.lastAt = 0; panMove(event); } dragOrigin.current = null; setFrameDragging(false); }
+  function zoomWheel(event) { event.preventDefault(); zoomFrame(event.deltaY < 0 ? 1 : -1); }
   function randomRegion() {
     const available = RANDOM_REGIONS.filter((candidate) => candidate.ra !== draft.ra || candidate.dec !== draft.dec);
     const choice = available[Math.floor(Math.random() * available.length)] || RANDOM_REGIONS[0];
@@ -161,9 +205,10 @@ function App() {
     </header>
 
     <section className="sky-stage" aria-label="SPHEREx sky viewer">
-      <div className="stage-topline"><span>RA {region.ra}° &nbsp; DEC {region.dec}°</span><span className="selected-date">{current ? dateLabel(current) : '—'}</span></div>
-      <div className={`sky-frame ${displayUrl ? 'has-image' : ''}`}>
-        {displayUrl && <img className="sky-image sky-image-current" src={displayUrl} alt={`SPHEREx ${band} image near RA ${region.ra}, Dec ${region.dec}`} />}
+      <div className="stage-topline"><span>RA {frameCenter.ra.toFixed(5)}° &nbsp; DEC {frameCenter.dec.toFixed(5)}°</span><span className="selected-date">{current ? dateLabel(current) : '—'}</span></div>
+      <div ref={frameRef} className={`sky-frame ${displayUrl ? 'has-image' : ''} ${frameDragging ? 'is-panning' : ''}`} onPointerDown={panStart} onPointerMove={panMove} onPointerUp={panEnd} onPointerCancel={panEnd} onWheel={compare || blink ? undefined : zoomWheel}>
+        {displayUrl && <img className="sky-image sky-image-current" src={displayUrl} alt={`SPHEREx ${band} image near RA ${frameCenter.ra.toFixed(3)}, Dec ${frameCenter.dec.toFixed(3)}`} draggable="false" />}
+        {!compare && !blink && <div className="frame-zoom-controls" aria-label="Image zoom controls" title="Scroll to zoom, drag to pan. Each zoom loads a new source cutout."><button onClick={() => zoomFrame(1)} disabled={frameFov <= MIN_FRAME_FOV} aria-label="Zoom into frame">+</button><span>{(BASE_FRAME_FOV / frameFov).toFixed(0)}×</span><button onClick={() => zoomFrame(-1)} disabled={frameFov >= BASE_FRAME_FOV} aria-label="Zoom out of frame">−</button><button onClick={() => { setFrameFov(BASE_FRAME_FOV); setFrameCenter({ ra: Number(region.ra), dec: Number(region.dec) }); }} disabled={frameFov === BASE_FRAME_FOV && frameCenter.ra === Number(region.ra) && frameCenter.dec === Number(region.dec)} aria-label="Reset frame view">RESET</button></div>}
         {compare && canCompare && <ComparisonOverlay earlier={comparison.earlier} later={comparison.later} blend={blend} onBlendChange={setBlend} />}
         {!displayUrl && <div className="first-load" role="status" aria-live="polite"><Stopwatch/><span>{loading ? 'READING THE ARCHIVE' : 'SEARCHING FOR A FRAME'}</span></div>}
         {frameLoading && displayUrl && <div className="frame-loading" role="status" aria-live="polite"><Stopwatch/><span>LOADING FRAME</span></div>}
