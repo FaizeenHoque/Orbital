@@ -7,7 +7,7 @@ const BANDS = ['SPHEREx-D1', 'SPHEREx-D2', 'SPHEREx-D3', 'SPHEREx-D4', 'SPHEREx-
 function initialState() {
   const params = new URLSearchParams(window.location.search);
   const requestedBand = params.get('band') ? `SPHEREx-${params.get('band').replace('SPHEREx-', '')}` : 'SPHEREx-D2';
-  return { ra: Number(params.get('ra')) || 210.80227, dec: Number(params.get('dec')) || 54.34895, zoom: Number(params.get('zoom')) || 180, band: BANDS.includes(requestedBand) ? requestedBand : 'SPHEREx-D2' };
+  return { ra: Number(params.get('ra')) || 210.80227, dec: Number(params.get('dec')) || 54.34895, zoom: Number(params.get('zoom')) || 360, band: BANDS.includes(requestedBand) ? requestedBand : 'SPHEREx-D2' };
 }
 
 // Aladin appends the HiPS tile path itself. Keep this base URL slash-free so
