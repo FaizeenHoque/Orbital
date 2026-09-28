@@ -11,7 +11,9 @@ const UPSTREAM_TIMEOUT_MS = Number(process.env.SPHEREX_UPSTREAM_TIMEOUT_MS || 60
 const QUERY_CACHE_TTL_MS = Number(process.env.SPHEREX_QUERY_CACHE_TTL_MS || 10 * 60 * 1000);
 const IMAGE_CACHE_TTL_MS = Number(process.env.SPHEREX_IMAGE_CACHE_TTL_MS || 30 * 60 * 1000);
 const IMAGE_CACHE_MAX_BYTES = Number(process.env.SPHEREX_IMAGE_CACHE_MAX_BYTES || 64 * 1024 * 1024);
-const PREVIEW_SIZE_DEGREES = Number(process.env.SPHEREX_PREVIEW_SIZE_DEGREES || 0.5);
+const PREVIEW_SIZE_DEGREES = Number(process.env.SPHEREX_PREVIEW_SIZE_DEGREES || 0.1);
+const HIPS_BASE_URL = process.env.SPHEREX_HIPS_BASE_URL || 'https://alasky.cds.unistra.fr/SPHEREx';
+const HIPS2FITS_URL = process.env.SPHEREX_HIPS2FITS_URL || 'https://alasky.cds.unistra.fr/hips-image-services/hips2fits';
 
 // Small bounded in-memory caches are intentional here: archive metadata and
 // previews are requested on demand, never bulk-downloaded or persisted forever.
@@ -110,6 +112,7 @@ function normalizeRecord(row, ra, dec, requestedRelease) {
     dec: asNumber(row.s_dec),
     distance: angularDistance(ra, dec, asNumber(row.s_ra), asNumber(row.s_dec)),
     coverage_at_query: pointInFootprint(row.s_region, ra, dec),
+    footprint: row.s_region || null,
     obs_date: mjdToIso(row.t_min),
     obs_date_end: mjdToIso(row.t_max),
     mjd: asNumber(row.t_min),
@@ -123,6 +126,7 @@ function normalizeRecord(row, ra, dec, requestedRelease) {
     original_archive_url: row.access_url || null,
     cutout_url: null,
     image_url: null,
+    hips_preview_url: null,
     access_format: row.access_format || null,
     estimated_size_bytes: asNumber(row.access_estsize),
     exposure_seconds: asNumber(row.t_exptime),
@@ -147,6 +151,8 @@ function normalizeRecord(row, ra, dec, requestedRelease) {
   const query = new URLSearchParams({ product: productId, ra: String(ra), dec: String(dec), size: String(PREVIEW_SIZE_DEGREES) });
   record.image_url = `/api/spherex/image/${encodeURIComponent(record.obs_id)}?${query}`;
   record.cutout_url = `/api/spherex/cutout?${query}`;
+  const hipsQuery = new URLSearchParams({ band: row.energy_bandpassname?.replace('SPHEREx-', '') || 'D2', ra: String(ra), dec: String(dec), fov: String(PREVIEW_SIZE_DEGREES), width: '512', height: '512' });
+  record.hips_preview_url = `/api/spherex/sky/preview?${hipsQuery}`;
   recordsByProduct.set(productId, { ...record, _upstreamUrl: row.access_url });
   return record;
 }
@@ -317,6 +323,56 @@ router.get('/observations', async (req, res, next) => {
     if (band !== 'all' && !BAND_RANGES_MICRONS[band]) throw httpError(400, 'INVALID_BAND', 'band must be one of SPHEREx-D1 through SPHEREx-D6, or all.');
     const records = await getObservations({ ra, dec, radius, band: band === 'all' ? null : band });
     res.json(records.slice(0, 500));
+  } catch (error) { next(error); }
+});
+
+// Equirectangular celestial tile metadata. z=0..5 intentionally remain a
+// lightweight whole-sky coordinate/coverage view; archive image cutouts only
+// become useful once a tile is small enough to query IRSA without a huge cone.
+router.get('/sky/tiles/:z/:x/:y', async (req, res, next) => {
+  try {
+    const z = Number(req.params.z); const x = Number(req.params.x); const y = Number(req.params.y);
+    if (![z, x, y].every(Number.isInteger) || z < 0 || z > 8) throw httpError(400, 'INVALID_TILE', 'Tile coordinates are invalid.');
+    const dimension = 2 ** z;
+    if (x < 0 || x >= dimension || y < 0 || y >= dimension) throw httpError(400, 'INVALID_TILE', 'Tile coordinates are outside the sky grid.');
+    const raMin = x / dimension * 360; const raMax = (x + 1) / dimension * 360;
+    const decMax = 90 - y / dimension * 180; const decMin = 90 - (y + 1) / dimension * 180;
+    const centerRa = (raMin + raMax) / 2; const centerDec = (decMin + decMax) / 2;
+    const radius = Math.min(5, Math.max(.1, Math.hypot((raMax - raMin) / 2, (decMax - decMin) / 2)));
+    const band = req.query.band || 'SPHEREx-D2';
+    const observations = z >= 6 ? await getObservations({ ra: centerRa, dec: centerDec, radius, band }) : [];
+    res.json({ tile: { z, x, y, bounds: { raMin, raMax, decMin, decMax }, center: { ra: centerRa, dec: centerDec }, resolution: z < 6 ? 'coordinate-overview' : 'SPHEREx-cutout' }, observations, coverage_available: observations.length > 0 });
+  } catch (error) { next(error); }
+});
+
+// Proxy the official SPHEREx HiPS pyramid through the local API so the browser
+// does not make a remote request for every pan/zoom tile.
+async function proxyHipsAsset(req, res, next) {
+  try {
+    const band = String(req.params.band || '').toUpperCase();
+    const asset = String(req.params[0] || 'properties').replace(/^\/+/, '') || 'properties';
+    if (!/^D[1-6]$/.test(band) || asset.includes('..') || !/^(properties|Norder\d+\/Dir\d+\/Npix\d+\.(png|jpg|fits))$/.test(asset)) throw httpError(400, 'INVALID_HIPS_ASSET', 'Invalid SPHEREx HiPS asset.');
+    const upstream = `${HIPS_BASE_URL}/${band}/${asset}`;
+    const response = await axios.get(upstream, { responseType: 'stream', timeout: UPSTREAM_TIMEOUT_MS });
+    res.set({ 'Content-Type': response.headers['content-type'] || (asset === 'properties' ? 'text/plain' : 'image/png'), 'Cache-Control': 'public, max-age=86400', 'X-Data-Source': 'CDS/IRSA SPHEREx HiPS' });
+    response.data.on('error', next).pipe(res);
+  } catch (error) { next(error); }
+}
+
+router.get('/sky/hips/:band', proxyHipsAsset);
+router.get('/sky/hips/:band/*', proxyHipsAsset);
+
+router.get('/sky/preview', async (req, res, next) => {
+  try {
+    const band = String(req.query.band || 'D2').toUpperCase();
+    if (!/^D[1-6]$/.test(band)) throw httpError(400, 'INVALID_BAND', 'band must be D1 through D6.');
+    const ra = parseCoordinate(req.query.ra, 'ra', 0, 360); const dec = parseCoordinate(req.query.dec, 'dec', -90, 90);
+    const fov = validateCutoutSize(req.query.fov); const width = Math.min(1024, Math.max(128, Number(req.query.width) || 512)); const height = Math.min(1024, Math.max(128, Number(req.query.height) || 512));
+    const key = `hips-preview:${band}:${ra.toFixed(5)}:${dec.toFixed(5)}:${fov}:${width}:${height}`; const cached = imageCache.get(key);
+    if (cached) { res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=1800', 'X-Data-Source': 'CDS SPHEREx HiPS' }); return res.send(cached); }
+    const params = new URLSearchParams({ hips: `CDS/P/SPHEREx/QR2/${band}`, ra: String(ra), dec: String(dec), fov: String(fov), width: String(width), height: String(height), projection: 'SIN', format: 'png' });
+    const response = await axios.get(`${HIPS2FITS_URL}?${params}`, { responseType: 'arraybuffer', timeout: UPSTREAM_TIMEOUT_MS, maxContentLength: 10 * 1024 * 1024 });
+    const image = Buffer.from(response.data); imageCache.set(key, image, IMAGE_CACHE_TTL_MS, image.length); res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=1800', 'X-Data-Source': 'CDS SPHEREx HiPS' }); res.send(image);
   } catch (error) { next(error); }
 });
 

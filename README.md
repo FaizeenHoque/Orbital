@@ -15,7 +15,9 @@ npm run dev      # Vite app on :5173
 
 Open <http://localhost:5173>. The default region is M101 (RA 210.80227°, Dec 54.34895°), the coordinate used in IRSA's official SPHEREx cutout tutorial.
 
-The frontend uses the deployed API at `https://spherex.hasnat4763.me` by default. Copy `.env.example` to `.env` only when pointing the frontend at another API deployment. The frontend no longer starts or proxies a local backend.
+Development uses the local API at `http://localhost:5000`. Start it with `npm run server`, then start the frontend with `npm run dev`. For a deployed frontend, set `VITE_API_URL=https://spherex.hasnat4763.me` at build time.
+
+Open `/sky` for the dedicated Google-Maps-style celestial navigator. It uses Aladin Lite with the official CDS SPHEREx HiPS pyramid, local HiPS tile proxying, coordinate readouts, coverage overlays, a time scrubber, and URL-restored state such as `?ra=210.80227&dec=54.34895&zoom=2.5&band=D2`.
 
 ## Deploy to Vercel
 
@@ -37,7 +39,7 @@ The backend is deployed separately at `https://spherex.hasnat4763.me`; configure
 
 ```text
 ORBITAL React UI
-      │ https://spherex.hasnat4763.me/api/spherex
+      │ http://localhost:5000/api/spherex
       ▼
 Deployed Express data layer
       │ on-demand SIA2 metadata / cutout requests
@@ -45,7 +47,7 @@ Deployed Express data layer
 NASA/IPAC IRSA SPHEREx QR3 + QR2
 ```
 
-The backend does not require or generate a local catalog. It queries IRSA SIA2 for the requested coordinate, radius, release, and spectral band. This avoids downloading the archive and keeps the result current as IRSA publishes weekly Quick Release products.
+The backend does not require or generate a local catalog. It queries IRSA SIA2 for the requested coordinate, radius, release, spectral band, or visible tile. This avoids downloading the archive and keeps the result current as IRSA publishes weekly Quick Release products.
 
 ## API
 
@@ -68,6 +70,18 @@ Results are normalized from the real IRSA SIA2 response and sorted by observatio
 Returns a bounded PNG preview generated from the IMAGE HDU of a real IRSA SPHEREx cutout. The frontend receives these URLs in the observation response. Required query parameters are `product`, `ra`, and `dec`; `size` is optional and constrained to `0.01–0.5` degrees.
 
 The preview is intentionally a visualization product, not a science-grade replacement for FITS. Pixel values are linearly scaled between robust percentile limits and encoded as a display PNG. The original FITS remains available through the raw cutout route.
+
+### `GET /api/spherex/sky/tiles/:z/:x/:y`
+
+Returns metadata for an equirectangular celestial tile. Low levels (`z<6`) are local coordinate-overview tiles and do not trigger archive requests. Higher levels query only the requested tile's RA/Dec region and return real SPHEREx observations whose bounded previews can be loaded by the viewer.
+
+### `GET /api/spherex/sky/hips/:band/*`
+
+Proxies the official CDS SPHEREx HiPS assets locally. The HiPS layer is the primary all-sky navigation surface; supported bands are D1–D6 and the proxy serves the HiPS `properties` file plus PNG/FITS hierarchical tiles from `https://alasky.cds.unistra.fr/SPHEREx/Dn/`.
+
+## Sky map integrity
+
+The `/sky` page uses HiPS/WCS-aware Aladin rendering for the all-sky layer, with equatorial coordinates and RA wrapping handled by the astronomy renderer. Observation footprints use the archive-provided polygon when available and otherwise use a visibly derived field-of-view approximation from real SIA metadata; the latter is not presented as a WCS boundary. SPHEREx HiPS tiles provide the whole-sky image at progressive resolutions, while SIA/cutout metadata remains a separate detail layer.
 
 ### `GET /api/spherex/cutout`
 
@@ -102,13 +116,14 @@ IRSA QR2 uses DOI `10.26131/IRSA652`; QR3 uses DOI `10.26131/IRSA662`. Include t
 
 ## Verified live example
 
-The backend was tested against M101 (`210.80227, 54.34895`, `radius=0.1`, `SPHEREx-D2`). IRSA returned 40 real QR2 D2 spectral-image products with the requested coordinate inside a safe margin for a full 0.5° preview, spanning 15 observation dates. A real cutout returned a valid FITS MEF from IRSA, and the backend converted its IMAGE HDU into a consistent 293×293 PNG preview for the ORBITAL viewer. Repeated requests are served consistently from the bounded preview cache.
+The backend was tested against M101 (`210.80227, 54.34895`, `radius=0.1`, `SPHEREx-D2`). IRSA returned 40 real QR2 D2 spectral-image products with the requested coordinate inside a safe margin for a default 0.1° detailed preview, spanning 15 observation dates. A real cutout returned a valid FITS MEF, while the HiPS preview arrives first for fast visual continuity. Explicit cutout requests may use up to 0.5° when a larger science preview is needed.
 
 The available products are archive observations, not a guarantee of a moving object. ORBITAL uses cautious language and does not label positional changes as comets, asteroids, planets, or Planet X without validated downstream analysis.
 
 ## Interaction notes
 
 - The timeline is a single image-to-image slider with no individual marker clutter. It keeps the current frame visible while the next frame loads, then crossfades the cached preview in.
+- The sky atlas uses Aladin Lite's hierarchical HiPS tile loading/cache for the whole sky, with the local backend proxying tile requests. Observation metadata is queried through the local backend after the camera settles rather than on every pointer movement.
 - The selected observation date is shown once in the viewer header; the timeline uses frame position and earliest/latest labels without repeating dates.
 - The current observation's immediate neighbors are prefetched into a bounded eight-image browser cache. Unneeded in-flight fetches are aborted as the user moves quickly.
 - Compare blends the earliest and latest compatible frames. Blink alternates those real observations at a measured cadence.
