@@ -2,7 +2,7 @@
 
 ORBITAL is a public-facing viewer for real NASA SPHEREx Quick Release spectral-image metadata and cutout previews. It is designed around the mission's core time-domain question: what changed when SPHEREx observed the same region again?
 
-The interface opens with a focused NSAC landing page explaining the workflow, then enters a single instrument view: one sky frame, one timeline, and minimal controls for compare, blink, bands, metadata, and real-region random discovery. The viewport is locked to the display so changing frames never turns into page navigation or scrolling. Departure Mono is bundled locally under the SIL Open Font License.
+The interface opens with a focused NSAC landing page and a dedicated all-sky navigator. The map uses the SPHEREx HiPS pyramid, with band selection, coordinate readouts, observation coverage, and a time scrubber. Departure Mono is bundled locally under the SIL Open Font License.
 
 ## Run locally
 
@@ -15,11 +15,11 @@ npm run server   # Python API on :5000
 npm run dev      # Vite app on :5173
 ```
 
-Open <http://localhost:5173>. The default region is M101 (RA 210.80227°, Dec 54.34895°), the coordinate used in IRSA's official SPHEREx cutout tutorial.
+Open <http://localhost:5173> and choose **OPEN SKY MAP**. The sky map starts in Tangential (TAN) projection, Galactic coordinates, and SPHEREx D6 with grid and coverage overlays off.
 
 Development uses the local Python API at `http://localhost:5000`. Install its pinned dependencies with `npm run backend:install`, start it with `npm run server`, then start the frontend with `npm run dev`. For a deployed frontend, set `VITE_API_URL` to the deployed backend URL at build time.
 
-Open `/sky` for the dedicated Google-Maps-style celestial navigator. It uses Aladin Lite with the official CDS SPHEREx HiPS pyramid, local HiPS tile proxying, coordinate readouts, coverage overlays, a time scrubber, and URL-restored state such as `?ra=210.80227&dec=54.34895&zoom=2.5&band=D2`.
+Open `/sky` directly for the celestial navigator. It uses Aladin Lite with the official CDS SPHEREx HiPS pyramid, local HiPS tile proxying, Galactic coordinate readouts, coverage overlays, and a time scrubber. Startup projection, coordinate frame, band, and layer visibility are fixed to the defaults above; center and zoom are preserved in the URL.
 
 ## Deploy to Vercel
 
@@ -123,17 +123,10 @@ The available products are archive observations, not a guarantee of a moving obj
 
 ## Interaction notes
 
-- The timeline is a single image-to-image slider with no individual marker clutter. It keeps the current frame visible while the next frame loads, then crossfades the cached preview in.
-- The sky atlas uses Aladin Lite's hierarchical HiPS tile loading/cache for the whole sky, with the local backend proxying tile requests. Observation metadata is queried through the local backend after the camera settles rather than on every pointer movement.
-- The selected observation date is shown once in the viewer header; the timeline uses frame position and earliest/latest labels without repeating dates.
-- The current observation's immediate neighbors are prefetched into a bounded eight-image browser cache. Unneeded in-flight fetches are aborted as the user moves quickly.
-- Compare blends the earliest and latest compatible frames. Blink alternates those real observations at a measured cadence.
-- `RANDOM` selects from curated real sky coordinates validated against the live IRSA/SPHEREx D2 service: M101, M31, M51, NGC 6946, Orion, and Vega fields. It does not generate synthetic coordinates or observations.
-- The stopwatch indicator is used only while the archive or a new frame is being retrieved; a previously displayed frame remains visible during normal timeline changes.
-- The application is viewport-locked with no page scrolling during image retrieval. A visible `RANDOM REGION` action loads one of the validated coordinates above, and the `INFO` drawer has an explicit `× CLOSE` control.
-- All primary actions live in a high-contrast control rail. Loading displays a real elapsed `MM:SS` timer inside the stopwatch, not only an animated icon.
-- The Info panel opens beside the control rail on larger displays and docks above the controls on mobile.
-- Compare and Blink are mutually exclusive. Compare uses a draggable divider directly on the image rather than adding a second slider.
+- HiPS tiles load progressively as the map zooms, using the selected survey's declared maximum order as the resolution limit.
+- Observation metadata is queried through the local backend after the camera settles.
+- Coverage polygons are optional and start hidden. The coordinate grid also starts hidden.
+- The band selector can switch between SPHEREx D1 through D6; each new visit starts on D6.
 
 ## Team
 
