@@ -2,49 +2,56 @@
 
 **Project:** ORBITAL / SPHEREx Sky Explorer  
 **Challenge:** Planet X and SPHEREx  
-**Length:** 4 minutes. Bracketed notes are stage directions; do not read them aloud.
+**Length:** 4 minutes. This is a video voiceover script. Bracketed notes describe what to show on screen; do not read them aloud.
 
-## 0:00–0:45 — Who we are and the opportunity
+## 0:00–0:20 — Start in SkyMap
 
-[Show the ORBITAL landing page.]
+[Start the recording on the app's landing page. Click **OPEN SKY MAP**. Hold on the map while it loads, then begin the voiceover.]
 
-Hello, we’re Team Larpers: Hasnat, Fynr1x, imtua, and Mohaimen. We built ORBITAL, a sky explorer for people who want to investigate real SPHEREx observations without starting in a specialist archive interface.
+Hello, we’re Team Larpers: Hasnat, Fynr1x, imtua, and Mohaimen. We built ORBITAL, a sky explorer that helps people navigate SPHEREx survey imagery and reach the real archive observations behind it. I’ll show you how to use it, starting from the sky map.
 
-SPHEREx surveys the whole sky in infrared light. Looking at the same region in different wavelength bands and at different observation times can reveal details that are easy to miss in a single image. But the data is valuable only if people can find a region, understand what they’re seeing, and follow up on interesting observations.
+## 0:20–0:50 — Find your way around
 
-## 0:45–1:30 — Why this matters
+This is the all-sky view. Drag to move around the sky and use the plus and minus controls to zoom. The value here shows the field of view, so you can tell how much sky you’re looking at. The image comes from the official SPHEREx HiPS survey.
 
-The challenge asks how the public can help explore SPHEREx data and look for objects that move or change. Our opportunity is to make the first step approachable: let someone navigate the sky, choose a spectral band, and inspect the observation records for the place they’re looking at.
+## 0:50–1:25 — Choose what to inspect
 
-ORBITAL is an exploration tool, not an automatic discovery claim. It doesn’t label a source as a planet, asteroid, or comet. Instead, it gives users a clearer path from “something caught my eye” to real archive observations they can examine further.
+[Move the cursor to **CONTROLS** and open the panel. Pause briefly on the map settings and layer switches, then move to the band buttons.]
 
-## 1:30–2:20 — What we built
+Open **CONTROLS** to adjust the map view. The layer switches let you add a coordinate grid or show observation coverage. The band buttons switch between the six SPHEREx bands available here, D1 through D6. I’ll select another band to see that same part of the sky in a different wavelength range.
 
-[Click **OPEN SKY MAP**.]
+SPHEREx surveys the whole sky in infrared light. Its observations cover different wavelengths and times, which can help researchers investigate objects and changes in the sky. ORBITAL makes it easier to find a region, orient yourself, and see what was observed there.
 
-This is the Sky Atlas. The all-sky image comes from the official SPHEREx HiPS survey, and we can switch between its six displayed bands. We can pan and zoom, read the Galactic coordinates at the map center, and turn on a coordinate grid or observation coverage outlines.
+## 1:25–2:00 — Navigate to the Whirlpool Galaxy
 
-When we settle on a region, ORBITAL requests matching observation metadata from NASA’s IRSA archive. The list is ordered by observation time. We can move through those records here and inspect the selected observation’s date and wavelength range. The map gives us the sky-wide context; the selected record connects that view to a real archive product.
+[In **MAP VIEW**, set the coordinate frame to ICRS and enter RA 13:29:52.70, Dec +47:11:43.0. Let the map center on the Whirlpool Galaxy (M51), then zoom in. In the video edit, place a clearly labeled comparison image beside the map; keep it visually distinct from the live SkyMap.]
 
-## 2:20–3:15 — Demo and how it works
+Now let’s visit a specific object: the Whirlpool Galaxy, also known as M51. I’ll use its ICRS coordinates—right ascension 13 hours, 29 minutes, 52.70 seconds, and declination plus 47 degrees, 11 minutes, 43 seconds—to move the map to that region and zoom in. I’ve added a comparison image beside the live map in the video, so you can compare the galaxy with the surrounding survey view.
 
-[Choose a band, pan to a region, enable coverage if useful, then move the observation slider.]
+## 2:00–2:25 — Inspect an archive observation
 
-I’ll switch bands, move to a region, and browse its available observations. Each record includes its date and spectral range, with links behind the scenes to a bounded image preview and the original FITS cutout. That lets someone move from a broad view toward the underlying data.
+[Pan the map a little and pause for the selected-frame details to update. Show the observation ID, date, and wavelength range. Optionally turn on coverage, then turn it off before continuing.]
 
-The frontend is built with React and Aladin Lite. A small Python and Flask API queries IRSA’s SIA service when a region is requested, normalizes the returned metadata, and fetches previews on demand. The all-sky HiPS imagery is served through a local proxy. We cache metadata and previews to reduce repeat requests, while keeping the original FITS available from the archive route.
+As the map position or band changes, ORBITAL requests observation metadata for the current view. **SELECTED FRAME** shows the archive observation ID, date, and wavelength range. This connects what you see on the map to a real observation record. The coverage layer can help show where observations fall on the sky.
 
-## 3:15–4:00 — Impact and next step
- 
-Our goal is to lower the barrier to taking part in sky exploration. A student, a curious observer, or an astronomer can start with a place in the sky and see which real SPHEREx observations are available there. Making those observations easier to reach can help more people ask useful questions and identify candidates for careful follow-up.
+## 2:25–3:20 — How it works and why it matters
 
-The next step is to add validated comparison and candidate-review workflows, with clear uncertainty and scientific checks before any object is classified. ORBITAL gives people a way into the data; the evidence must determine what the data means.
+The Planet X and SPHEREx challenge invites people to explore survey data and help look for objects that may move or change. That work starts with access to the sky and trustworthy observations. ORBITAL brings the all-sky view, navigation, band choices, and archive metadata together. It helps users reach data for investigation; it does not claim to detect or classify a planet, asteroid, or comet.
 
-Explore the sky with ORBITAL. The next interesting change may be waiting in an observation most of us haven’t looked at yet. Thank you.
+The frontend uses React and Aladin Lite. A Python and Flask API queries NASA/IPAC IRSA’s SIA service for the current sky position and band, then normalizes the archive response for the interface. The official HiPS survey is served through a local proxy. Metadata and image previews use in-memory caching on the backend; original FITS cutouts remain available through the archive route for follow-up.
 
-## Presenter notes
+## 3:20–4:00 — Impact and next step
 
-- Keep the Sky Atlas already loaded before the pitch; avoid spending demo time waiting on network requests.
-- If the live archive is slow, use the landing page and explain the intended browse flow rather than claiming a result that is not visible.
-- Do not claim that ORBITAL detects moving objects, classifies candidates, or compares image frames automatically; those features are not implemented in the current project.
-- The interface exposes six SPHEREx bands (D1–D6); the landing page describes SPHEREx’s 102 infrared colors.
+Our goal is to lower the barrier to exploring real mission data. Students, curious observers, and astronomers can navigate the sky, see which SPHEREx observations are available in a region, and use their metadata to guide further investigation.
+
+The next step is to build validated tools for comparing observations across time and reviewing candidate objects, with clear uncertainty and scientific checks. Today, ORBITAL helps people find and inspect the data; any claim about what an object is must come from evidence and careful analysis.
+
+Explore the sky with ORBITAL. A discovery begins with a good question and the right observation. Thank you.
+
+## Video recording notes
+
+- Record the app from its landing page so viewers see the entry point, then click **OPEN SKY MAP** and let the map finish loading before continuing. Keep the backend and network connection available for live metadata requests.
+- Capture the cursor and move it deliberately. Pause after changing bands or moving the map so the viewer can see the imagery and metadata update; trim dead time in editing.
+- For the M51 segment, use ICRS RA 13:29:52.70, Dec +47:11:43.0. Add the comparison image in post-production beside the recording, and label it as a comparison visual so it is clear it is not an in-app feature.
+- The current interface does not provide a timeline slider, image comparison, or automated moving-object detection/classification; describe those as future work.
+- The interface offers six SPHEREx bands (D1–D6); the landing page describes SPHEREx's 102 infrared colors.

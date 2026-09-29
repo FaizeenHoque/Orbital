@@ -86,7 +86,34 @@ export default function SkyMapPage({ onBack }) {
   useEffect(() => { const timer = window.setTimeout(() => loadMetadata(), 450); return () => window.clearTimeout(timer); }, [band, center, loadMetadata]);
   useEffect(() => { const aladin = aladinRef.current; if (!aladin) return; aladin.setCooGrid({ enabled: showGrid }); }, [showGrid]);
   useEffect(() => { const params = new URLSearchParams({ ra: Number(center.ra).toFixed(5), dec: Number(center.dec).toFixed(5), zoom: Number(zoom).toFixed(2), band: band.replace('SPHEREx-', '') }); window.history.replaceState({}, '', `/sky?${params}`); }, [band, center, zoom]);
-  useEffect(() => { const aladin = aladinRef.current; if (!aladin || !aladin.view) return; coverageRef.current?.remove?.(); if (!showCoverage || !observations.length) return; const overlay = A.graphicOverlay({ name: 'spherex-coverage', color: '#d6ff62', lineWidth: 1 }); observations.slice(0, 100).forEach((record) => { const polygon = parsePolygon(record.footprint); if (polygon) overlay.add(A.polygon(polygon, { color: '#d6ff62', opacity: .5, lineWidth: 1, fill: false }), false); }); aladin.addOverlay(overlay); coverageRef.current = overlay; return () => { overlay.remove?.(); }; }, [aladinReady, observations, showCoverage]);
+  useEffect(() => {
+    const aladin = aladinRef.current;
+    if (!aladin?.view) return;
+
+    // GraphicOverlay instances are removed by the Aladin view, not by the
+    // overlay itself. Removing via Aladin also ensures redraws don't leave the
+    // old footprints visible after this effect is cleaned up.
+    const previousOverlay = coverageRef.current;
+    if (previousOverlay) {
+      aladin.removeOverlay(previousOverlay);
+      coverageRef.current = null;
+    }
+
+    if (!showCoverage || !observations.length) return;
+
+    const overlay = A.graphicOverlay({ name: 'spherex-coverage', color: '#d6ff62', lineWidth: 1 });
+    observations.slice(0, 100).forEach((record) => {
+      const polygon = parsePolygon(record.footprint);
+      if (polygon) overlay.add(A.polygon(polygon, { color: '#d6ff62', opacity: .5, lineWidth: 1, fill: false }), false);
+    });
+    aladin.addOverlay(overlay);
+    coverageRef.current = overlay;
+
+    return () => {
+      aladin.removeOverlay(overlay);
+      if (coverageRef.current === overlay) coverageRef.current = null;
+    };
+  }, [aladinReady, observations, showCoverage]);
   useEffect(() => {
     const map = mapRef.current;
     const settings = mapSettingsRef.current;
