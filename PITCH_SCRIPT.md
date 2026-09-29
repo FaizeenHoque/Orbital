@@ -35,7 +35,7 @@ I’ll switch bands, move to a region, and browse its available observations. Ea
 The frontend is built with React and Aladin Lite. A small Python and Flask API queries IRSA’s SIA service when a region is requested, normalizes the returned metadata, and fetches previews on demand. The all-sky HiPS imagery is served through a local proxy. We cache metadata and previews to reduce repeat requests, while keeping the original FITS available from the archive route.
 
 ## 3:15–4:00 — Impact and next step
-
+ 
 Our goal is to lower the barrier to taking part in sky exploration. A student, a curious observer, or an astronomer can start with a place in the sky and see which real SPHEREx observations are available there. Making those observations easier to reach can help more people ask useful questions and identify candidates for careful follow-up.
 
 The next step is to add validated comparison and candidate-review workflows, with clear uncertainty and scientific checks before any object is classified. ORBITAL gives people a way into the data; the evidence must determine what the data means.
